@@ -1,0 +1,58 @@
+menu "Application Options"
+
+    config SPI_DEVICES
+        bool "using SPI devices"
+        default y
+        help
+            Choose this option to configure SPI
+
+    if SPI_DEVICES
+    choice SDCARD_SPI_HOST
+    prompt "SPI Host for SD-CARD"
+	default SDCARD_HSPI_HOST
+	help
+	    SPI PORT for SDCARD.
+
+    config SDCARD_HSPI_HOST
+        bool "HSPI"
+	config SDCARD_VSPI_HOST
+	    bool "VSPI"
+    endchoice
+
+
+    choice DISPLAY_SPI_HOST
+    prompt "SPI Host for TFT LCD"
+    default LCD_VSPI_HOST   
+    help
+        SPI PORT for TFT LCD.
+
+    config LCD_VSPI_HOST
+        bool "VSPI"
+    config LCD_HSPI_HOST
+        bool "HSPI"
+    endchoice
+    endif
+
+    config CONNECT_WIFI
+        bool "connect using WiFi interface"
+        default y
+        help
+            Choose this option to connect with WiFi
+
+    if CONNECT_WIFI
+        config WIFI_SSID
+            string "WiFi SSID"
+            default "myssid"
+            help
+                SSID (network name) for the example to connect to.
+
+        config WIFI_PASSWORD
+            string "WiFi Password"
+            default "mypassword"
+            help
+                WiFi password (WPA or WPA2) for the example to use.
+                Can be left blank if the network has no security set.
+    endif
+
+
+endmenu

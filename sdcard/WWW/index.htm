@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html><head>
+<meta http-equiv="content-type" content="text/html; charset=UTF-8">
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Fetch API Demo</title>
+  <link rel="stylesheet" href="main.css">
+  <script src="main.js"></script>
+</head>
+
+<body onload="GetBLEData()">
+<h3>Принятые данные</h3>
+<table class="TFtableCol" id="curr_values">
+  <tbody>
+  <tr>
+    <th rowspan="2">Точка контроля</th>
+    <th colspan="3">Температура</th>
+    <th rowspan="2">P, bar</th>
+    <th colspan="2">Насос</th>
+    <th rowspan="2">Вр.обмена</th>
+  </tr>
+  <tr>
+    <th>осн. бат.</th>
+    <th>доп. бат.</th>
+    <th>воздух</th>
+    <th>включён</th>
+    <th>вр.включ.</th>
+  </tr>
+  <tr id="treast">
+    <td>EAST</td><td>00.00</td><td>00.00</td><td>00.00</td><td>00.00</td>
+    <td>Нет</td><td>00:00:00</td><td>00:00:00</td>
+  </tr>
+  <tr id="trwest">
+    <td>WEST</td><td>00.00</td><td>00.00</td><td>00.00</td><td>00.00</td>
+    <td>Нет</td><td>00:00:00</td><td>00:00:00</td>
+  </tr>
+  </tbody>
+</table>
+
+<h3>Настройки</h3>
+<table class="TFtableCol" id="saved_values">
+  <tbody>
+  <tr>
+    <th rowspan="2">Точка контроля</th>
+    <th rowspan="2">Блок.</th>
+    <th rowspan="2">Режим</th>
+    <th rowspan="2">Интервал</th>
+    <th colspan="2">Ночной перерыв</th>
+    <th colspan="2">Разность темп.</th>
+    <th rowspan="2">Clock div</th>
+    <th rowspan="2">Редактировать</th>
+  </tr>
+  <tr>
+    <th>начало</th>
+    <th>конец</th>
+    <th>вкл</th>
+    <th>выкл</th>
+  </tr>
+  <tr id="treast">
+    <td rowspan="2">EAST</td>
+    <td>0</td><td>0</td><td>00:00</td><td>00:00</td><td>00:00</td><td>8</td><td>1</td><td>399</td>
+    <td rowspan="2">
+      <button class="openButton" onclick="openForm('east')"><strong>Изменить</strong></button>
+    </td>
+  </tr>
+  <tr style="color:#FF0000">
+    <td>0</td><td>0</td><td>00:00</td><td>00:00</td><td>00:00</td><td>8</td><td>1</td><td>399</td>
+  </tr>
+  <tr id="trwest">
+    <td rowspan="2">WEST</td>
+    <td>0</td><td>0</td><td>00:00</td><td>00:00</td><td>00:00</td><td>8</td><td>1</td><td>399</td>
+    <td rowspan="2">
+      <button class="openButton" onclick="openForm('west')"><strong>Изменить</strong></button>
+    </td>    
+  </tr>
+  <tr style="color:#FF0000">
+    <td>0</td><td>0</td><td>00:00</td><td>00:00</td><td>00:00</td><td>8</td><td>1</td><td>399</td>
+  </tr>
+  </tbody>
+</table>
+
+<br>
+<div class="loginPopup">
+  <div class="formPopup" id="popupForm">
+    <form action="/set_params" method="get" class="formContainer">
+      <h3 id="form_h3">редактирование параметров</h3>
+      <label for="mode"><strong>Режим:</strong></label>
+      <input type="number" id="mode" name="mode" min="0" max="1" value="0" required=""><br>
+      <label for="period"><strong>Интервал:</strong></label>
+      <input type="time" id="period" name="period" value="03:00" required=""><br>
+      <label for="nightb"><strong>Перерыв, начало:</strong></label>
+      <input type="time" id="nightb" name="nightb" value="23:15" required=""><br>
+      <label for="nighte"><strong>, конец:</strong></label>
+      <input type="time" id="nighte" name="nighte" value="07:15" required=""><br>
+      <label for="d_up"><strong>dT включения:</strong></label>
+      <input type="number" id="d_up" name="d_up" min="2" max="9" value="8" required=""><br>
+      <label for="d_down"><strong>dT выключения:</strong></label>
+      <input type="number" id="d_down" name="d_down" min="1" max="8" value="2" required="">
+      <label for="sclk"><strong>Подстройка часов:</strong></label>
+      <input type="number" id="sclk" name="sclk" min="380" max="420" value="399" required=""><br>
+      <label for="lock"><strong>Блокировка:</strong></label>
+      <input type="number" id="lock" name="lock" min="0" max="2" value="0" required=""><br>
+      <input type="hidden" id="pname" name="pname" value="EAST">
+      <button type="submit" class="btn">Применить</button>
+      <button type="button" class="btn cancel" onclick="closeForm()">Закрыть</button>
+    </form>
+  </div>
+</div>
+
+</body>
+</html>

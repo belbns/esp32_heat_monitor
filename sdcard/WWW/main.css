@@ -1,0 +1,122 @@
+body {
+  font-family: Helvetica, sans-serif;
+}
+/*
+table, th, td {
+  border: 1px solid blue;
+  border-collapse: collapse;
+}
+*/
+
+th {
+  font-size: 80%;
+}
+/*
+#edit_block {
+	max-width: 80%;
+	border-style: solid;
+	border-color: #92a8d1;
+	border-radius: 10px;
+}
+*/
+* {
+    box-sizing: border-box;
+}
+
+.openBtn {
+    display: flex;
+    justify-content: left;
+}
+.openButton {
+    border: none;
+    border-radius: 3px;
+    background-color: #1c87c9;
+    color: white;
+    padding: 4px;
+    cursor: pointer;
+    //position: fixed;
+}
+.loginPopup {
+    position: relative;
+    text-align: center;
+    width: 100%;
+}
+.formPopup {
+    display: none;
+    position: fixed;
+    left: 25%;
+    top: 5%;
+    transform: translate(-50%, 5%);
+    border: 3px solid #999999;
+    z-index: 9;
+}
+.formContainer {
+    max-width: 300px;
+    padding: 10px;
+    background-color: #fff;
+}
+.formContainer input[type=number] {
+    width: 20%;
+    padding: 5px;
+    margin: 5px 0 10px 0;
+    border: none;
+    background: #eee;
+}
+.formContainer input[type=time] {
+    width: 30%;
+    padding: 5px;
+    margin: 5px 0 10px 0;
+    border: none;
+    background: #eee;
+}
+
+.formContainer input[type=text]:focus,
+.formContainer input[type=number]:focus,
+.formContainer input[type=time]:focus {
+    background-color: #ddd;
+    outline: none;
+}
+.formContainer label {
+	text-align: left;
+}
+.formContainer .btn {
+    padding: 12px 10px;
+    border: none;
+    background-color: #8ebf42;
+    color: #fff;
+    cursor: pointer;
+    width: 100%;
+    margin-bottom: 15px;
+    opacity: 0.8;
+}
+.formContainer .cancel {
+    background-color: #cc0000;
+}
+.formContainer .btn:hover,
+.openButton:hover {
+    opacity: 1;
+}
+
+.TFtableCol {
+    width:720px; 
+    border-collapse:collapse; 
+}
+.TFtableCol td { 
+    padding:4px 20px; border:#4e95f4 1px solid;
+}
+/*  Define the background color for all the ODD table columns  */
+.TFtableCol tr td:nth-child(even) { 
+    background: #dae5f4;
+}
+/*  Define the background color for all the EVEN table columns  */
+.TFtableCol tr td:nth-child(odd) {
+    background: #b8d1f3;
+}
+
+.TFtableCol th {
+    padding:5px; border:#4e95f4 1px solid;
+    background: #49759c;
+}
+
+
+//
