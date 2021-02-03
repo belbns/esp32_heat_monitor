@@ -29,7 +29,7 @@
 #include "ble_scan.h"
 
 #include "ili9340.h"
-#include "fontx.h"
+//#include "fontx.h"
 
 
 #define TAG "GATTC"
@@ -40,12 +40,14 @@
 extern pump_struct heat_ctrl[2];
 extern xQueueHandle pump_cmd_queue[2];
 
-extern TFT_t dev;
-extern int width;
-extern int height;
-extern FontxFile fx16M[2];
-extern FontxFile fx24M[2];
-extern FontxFile fx32M[2];
+//extern TFT_t dev;
+//extern int width;
+//extern int height;
+//extern FontxFile fx16M[2];
+//extern FontxFile fx24M[2];
+//extern FontxFile fx32M[2];
+
+char lbuff[64];
 
 static void parse_notif(char *not_value, uint16_t not_len, uint8_t curr_dev);
 static uint8_t send_cmd(uint8_t curr_dev);
@@ -349,7 +351,7 @@ static void esp_gap_cb(esp_gap_ble_cb_event_t event, esp_ble_gap_cb_param_t *par
             //esp_log_buffer_char(TAG, adv_name, adv_name_len);
             //strlcpy(buf, (char *)adv_name, adv_name_len + 1);
             //ESP_LOGI(TAG, "adv_name: %s len:%d", buf, adv_name_len);
-
+/*
 #if CONFIG_EXAMPLE_DUMP_ADV_DATA_AND_SCAN_RESP
             if (scan_result->scan_rst.adv_data_len > 0) {
                 ESP_LOGI(TAG, "adv data:");
@@ -359,7 +361,7 @@ static void esp_gap_cb(esp_gap_ble_cb_event_t event, esp_ble_gap_cb_param_t *par
                 ESP_LOGI(TAG, "scan resp:");
                 esp_log_buffer_hex(TAG, &scan_result->scan_rst.ble_adv[scan_result->scan_rst.adv_data_len], scan_result->scan_rst.scan_rsp_len);
             }
-#endif
+#endif*/
             ESP_LOGI(TAG, "\n");
 
             if (adv_name != NULL) {
@@ -444,7 +446,7 @@ void ble_task(void * pvParameters)
 
     time_t now;
     struct tm timeinfo;
-
+    /*
     uint8_t buffer[FontxGlyphBufSize];
     uint8_t fontWidth;
     uint8_t fontHeight;
@@ -453,15 +455,20 @@ void ble_task(void * pvParameters)
     GetFontx(fx, 0, buffer, &fontWidth, &fontHeight);
 
     uint16_t color = CYAN;
-    //lcdFillScreen(&dev, BLACK);
-    uint8_t ascii[32];
+    lcdFillScreen(&dev, BLACK);
+    */
+    uint16_t color;
     uint8_t hh = 0; uint8_t mm = 0;
 
-    sprintf((char *)ascii, "P,bar:"); 
-    lcdSetFontDirection(&dev, 1);
-    lcdDrawString(&dev, fx, (width-1)-fontHeight, 16 * 10, ascii, color);
-    sprintf((char *)ascii, "  t(m)  t(x)  t(a)");
-    lcdDrawString(&dev, fx, (width-1)-fontHeight - 32, 0, ascii, color);
+    sprintf(lbuff, "P,bar:");
+    lcd_string(lbuff, 0, 16 * 10, 16 * 10, CYAN);
+ 
+    //lcdSetFontDirection(&dev, 1);
+    //lcdDrawString(&dev, fx, (width-1)-fontHeight, 16 * 10, ascii, color);
+    sprintf(lbuff, "  t(m)  t(x)  t(a)");
+    lcd_string(lbuff, 1, 0, 0, CYAN);
+
+    //lcdDrawString(&dev, fx, (width-1)-fontHeight - 32, 0, ascii, color);
 
     ESP_ERROR_CHECK(esp_bt_controller_mem_release(ESP_BT_MODE_CLASSIC_BT));
 
@@ -517,8 +524,11 @@ void ble_task(void * pvParameters)
     uint16_t delay_cnt = 30;
     uint8_t err_cnt[2] = {0, 0};
 
-    esp_ble_gap_stop_scanning();
     vTaskDelay(1000 / portTICK_PERIOD_MS);
+
+    sprintf(lbuff, "Scanning...    ");
+    lcd_string(lbuff, 6, 0, 0, CYAN);
+
     connect = 0;
 
     uint16_t cnt = 1000;
@@ -571,13 +581,19 @@ void ble_task(void * pvParameters)
             delay_cnt = 30;
         }
 
+        sprintf(lbuff, "east:0x%x  west:0x%x ",
+                    heat_ctrl[0].rec_flags, heat_ctrl[1].rec_flags);
+        lcd_string(lbuff, 5, 0, 0, CYAN);
+
         ESP_LOGI(TAG, "\n== pause %d sec", delay_cnt);
+        sprintf(lbuff, "Pause %d sec...", delay_cnt);
+        lcd_string(lbuff, 6, 0, 0, CYAN);
 
         color = BLUE;
         for (uint16_t i = 0; i < delay_cnt; i++) {
             time(&now);
             localtime_r(&now, &timeinfo);
-            sprintf((char *)ascii, "%02u:%02u:%02u", 
+            sprintf(lbuff, "%02u:%02u:%02u", 
               timeinfo.tm_hour & 0x3f, timeinfo.tm_min & 0x3f, timeinfo.tm_sec & 0x3f);
             uint16_t xb = 16 * 6;
             if (timeinfo.tm_min != mm) {
@@ -589,10 +605,12 @@ void ble_task(void * pvParameters)
             hh = timeinfo.tm_hour;
             mm = timeinfo.tm_min;
 
-            lcdDrawFillRect(&dev, (width-1)-fontHeight, xb, (width-1), 16 * 8, BLACK);
-            lcdDrawString(&dev, fx, (width-1)-fontHeight, 0, ascii, color);
+            lcd_string(lbuff, 0, 0, xb, YELLOW);
+            //lcdDrawFillRect(&dev, (width-1)-fontHeight, xb, (width-1), 16 * 8, BLACK);
+            //lcdDrawString(&dev, fx, (width-1)-fontHeight, 0, ascii, color);
 
-            if ((i % 5) == 0) {
+            //if ((i % 5) == 0) {
+            if ((i == 0) || (i == (delay_cnt - 1))) {
                 if ((heat_ctrl[0].press_bar >= 0.7) && (heat_ctrl[0].press_bar < 1.0))
                 {
                     color = YELLOW;
@@ -601,33 +619,39 @@ void ble_task(void * pvParameters)
                 } else {
                     color = BLUE;
                 }
-                sprintf((char *)ascii, "%4.2f", heat_ctrl[0].press_bar);
-                lcdDrawFillRect(&dev, (width-1)-fontHeight, 16 * 16, (width-1), 16 * 20 - 1, BLACK);
-                lcdDrawString(&dev, fx, (width-1)-fontHeight, 16 * 16, ascii, color);
+                sprintf(lbuff, "%4.2f", heat_ctrl[0].press_bar);
+                lcd_string(lbuff, 0, 16 * 16, 16 * 16, color);
+                //lcdDrawFillRect(&dev, (width-1)-fontHeight, 16 * 16, (width-1), 16 * 20 - 1, BLACK);
+                //lcdDrawString(&dev, fx, (width-1)-fontHeight, 16 * 16, ascii, color);
 
                 if (heat_ctrl[0].pump_on) {
                     color = YELLOW;
                 } else {
                     color = BLUE;
                 }
-                sprintf((char *)ascii, 
+                sprintf(lbuff, 
                     "E %5.2f %5.2f %5.2f", heat_ctrl[0].t_main, heat_ctrl[0].t_aux, heat_ctrl[0].t_air);
-                lcdDrawFillRect(&dev, (width-1)-fontHeight - 32 * 2, 0, (width-1) - 32 * 2, (height-1), BLACK);
-                lcdDrawString(&dev, fx, (width-1)-fontHeight - 32 * 2, 0, ascii, color);
+                lcd_string(lbuff, 2, 0, 0, color);
+                //lcdDrawFillRect(&dev, (width-1)-fontHeight - 32 * 2, 0, (width-1) - 32 * 2, (height-1), BLACK);
+                //lcdDrawString(&dev, fx, (width-1)-fontHeight - 32 * 2, 0, ascii, color);
 
                 if (heat_ctrl[1].pump_on) {
                     color = YELLOW;
                 } else {
                     color = BLUE;
                 }
-                sprintf((char *)ascii, 
+                sprintf(lbuff, 
                     "W %5.2f %5.2f %5.2f", heat_ctrl[1].t_main, heat_ctrl[1].t_aux, heat_ctrl[1].t_air);
-                lcdDrawFillRect(&dev, (width-1)-fontHeight - 32 * 3, 0, (width-1) - 32 * 3, (height-1), BLACK);
-                lcdDrawString(&dev, fx, (width-1)-fontHeight - 32 * 3, 0, ascii, color);
+                lcd_string(lbuff, 3, 0, 0, color);
+                //lcdDrawFillRect(&dev, (width-1)-fontHeight - 32 * 3, 0, (width-1) - 32 * 3, (height-1), BLACK);
+                //lcdDrawString(&dev, fx, (width-1)-fontHeight - 32 * 3, 0, ascii, color);
             }
 
             vTaskDelay(1000 / portTICK_PERIOD_MS);
         }
+
+        sprintf(lbuff, "Scanning...    ");
+        lcd_string(lbuff, 6, 0, 0, CYAN);
 
         heat_ctrl[0].rec_flags = 0;
         heat_ctrl[1].rec_flags = 0;

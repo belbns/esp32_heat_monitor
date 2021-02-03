@@ -92,5 +92,7 @@ typedef struct _command_item {
 
 uint8_t put_to_cmd_queue(uint8_t pnum, uint8_t cmd, uint8_t param);
 uint8_t save_params(void);
+void lcd_string(char *st, uint8_t nst, uint16_t shift, uint16_t clrshift, uint16_t color);
+
 
 #endif

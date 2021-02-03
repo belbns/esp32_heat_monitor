@@ -50,6 +50,8 @@
 #define ESP_WIFI_PASS      CONFIG_WIFI_PASSWORD
 #define ESP_MAXIMUM_RETRY  10
 
+#define WEB_SERVER_PORT     80
+
 #define CHECK_FILE_EXTENSION(filename, ext) (strcasecmp(&filename[strlen(filename) - strlen(ext)], ext) == 0)
 
 extern uint8_t fl_time;  // true - время синхронизировано
@@ -99,6 +101,12 @@ int height = CONFIG_HEIGHT;
 FontxFile fx16M[2];
 FontxFile fx24M[2];
 FontxFile fx32M[2];
+
+//uint8_t ascii[32];
+uint8_t buffer[FontxGlyphBufSize];
+uint8_t fontWidth;
+uint8_t fontHeight;
+FontxFile *fx = fx32M;
 
 
 static const char mount_point[] = MOUNT_POINT;
@@ -580,27 +588,6 @@ static esp_err_t display_get_handler(httpd_req_t *req)
     return ESP_OK;
 }
 
-// Параметры обрабатываемых запросов
-static const httpd_uri_t display_val = {
-    .uri       = "/display_val",
-    .method    = HTTP_GET,
-    .handler   = display_get_handler,
-    .user_ctx  = NULL
-};
-
-static const httpd_uri_t set_params = {
-    .uri       = "/set_params",
-    .method    = HTTP_GET,
-    .handler   = params_get_handler,
-    .user_ctx  = NULL
-};
-
-static const httpd_uri_t common_get_uri = {
-    .uri = "/*",
-    .method = HTTP_GET,
-    .handler = common_get_handler,
-    .user_ctx = NULL
-};
 
 esp_err_t http_404_error_handler(httpd_req_t *req, httpd_err_code_t err)
 {
@@ -806,26 +793,44 @@ static void periodic_timer_callback(void* arg)
 
 static httpd_handle_t start_webserver(void)
 {
-    httpd_handle_t server = NULL;
     httpd_config_t config = HTTPD_DEFAULT_CONFIG();
-
+    //config.server_port = WEB_SERVER_PORT;
     config.uri_match_fn = httpd_uri_match_wildcard;
 
-    // Start the httpd server
-    uint8_t tcnt = 0;
-    while ((server == NULL) && (tcnt++ < 3)) {
-        ESP_LOGI(TAG, "Starting server (%d) on port: '%d'", tcnt, config.server_port);
-        if (httpd_start(&server, &config) == ESP_OK) {
-            httpd_register_uri_handler(server, &display_val);
-            httpd_register_uri_handler(server, &set_params);
-            httpd_register_uri_handler(server, &common_get_uri);
-        } else {
-            vTaskDelay((2000) / portTICK_RATE_MS);
-        }
-    }
+    // Параметры обрабатываемых запросов
+    httpd_uri_t display_val = {
+        .uri       = "/display_val",
+        .method    = HTTP_GET,
+        .handler   = display_get_handler,
+        .user_ctx  = NULL
+    };
 
-    if (server ==  NULL) {
-        ESP_LOGI(TAG, "Error starting server!");
+    httpd_uri_t set_params = {
+        .uri       = "/set_params",
+        .method    = HTTP_GET,
+        .handler   = params_get_handler,
+        .user_ctx  = NULL
+    };
+
+    httpd_uri_t common_get_uri = {
+        .uri = "/*",
+        .method = HTTP_GET,
+        .handler = common_get_handler,
+        .user_ctx = NULL
+    };
+
+    httpd_handle_t server = NULL;
+
+    ESP_LOGI(TAG, "Starting server on port: '%d'", config.server_port);
+    
+    esp_err_t res;
+    if ((res = httpd_start(&server, &config)) == ESP_OK) {    
+        ESP_LOGI(TAG, "Registering URI handlers");
+        httpd_register_uri_handler(server, &display_val);
+        httpd_register_uri_handler(server, &set_params);
+        httpd_register_uri_handler(server, &common_get_uri);
+    } else {
+        ESP_LOGE(TAG, "Error starting server! res=%d server= %x", res, (uint32_t)server);
     }
     return server;
 }
@@ -834,6 +839,19 @@ static void stop_webserver(httpd_handle_t server)
 {
     // Stop the httpd server
     httpd_stop(server);
+}
+
+void lcd_string(char *st, uint8_t nst, uint16_t shift, uint16_t clrshift, uint16_t color)
+{
+    uint16_t ll = 16 * strlen(st);
+    lcdSetFontDirection(&dev, 1);
+
+    int16_t y1 = (width - 1) - 32 * nst;
+    int16_t y0 = y1 - fontHeight;
+    int16_t x0 = clrshift;
+    int16_t x1 = shift + ll;
+    lcdDrawFillRect(&dev, y0, x0, y1, x1, BLACK);
+    lcdDrawString(&dev, fx, y0, shift, (uint8_t *)st, color);
 }
 
 void app_main(void)
@@ -854,9 +872,25 @@ void app_main(void)
     ESP_LOGI(TAG, "ESP_WIFI_MODE_STA");
     wifi_init_sta();
 
+    InitFontx(fx16M,"/sdcard/font/ILMH16XB.FNT",""); // 8x16Dot Mincyo
+    InitFontx(fx24M,"/sdcard/font/ILMH24XB.FNT",""); // 12x24Dot Mincyo
+    InitFontx(fx32M,"/sdcard/font/ILMH32XB.FNT",""); // 16x32Dot Mincyo
+        
+    spi_master_init(&dev, CONFIG_MOSI_GPIO, CONFIG_SCLK_GPIO, CONFIG_CS_GPIO,
+                            CONFIG_DC_GPIO, CONFIG_RESET_GPIO, CONFIG_BL_GPIO);
+
+    uint16_t model = 0x9341;
+    lcdInit(&dev, model, CONFIG_WIDTH, CONFIG_HEIGHT, CONFIG_OFFSETX, CONFIG_OFFSETY);
+    lcdFillScreen(&dev, BLACK);
+
     ESP_LOGI(TAG, "Initializing SD card");
     ESP_ERROR_CHECK(init_fs());
 
+    char lbuff[32];
+    GetFontx(fx, 0, buffer, &fontWidth, &fontHeight);
+
+    sprintf(lbuff, "Restore params");
+    lcd_string(lbuff, 1, 0, 0, YELLOW);
     restore_params();
 
     // Создание очередей команд
@@ -873,78 +907,37 @@ void app_main(void)
 
     // Создание таймера для синхронизации времени и сохранения параметров
     esp_timer_handle_t periodic_timer;
-    ESP_LOGI(TAG, "Ctreate periodic timer...");
+    ESP_LOGI(TAG, "Ctreate periodic timer");
     ESP_ERROR_CHECK(esp_timer_create(&periodic_timer_args, &periodic_timer));
 
     ESP_LOGI(TAG, "starting tasks...");
 
+    sprintf(lbuff, "Start clock_task");
+    lcd_string(lbuff, 2, 0, 0, YELLOW);
     xTaskCreatePinnedToCore(clock_task, 
         "ClockUpdate", 4096, ( void * ) 1, tskIDLE_PRIORITY + 5, NULL, tskNO_AFFINITY);
 
-    // TFT INIT
-    InitFontx(fx16M,"/sdcard/font/ILMH16XB.FNT",""); // 8x16Dot Mincyo
-    InitFontx(fx24M,"/sdcard/font/ILMH24XB.FNT",""); // 12x24Dot Mincyo
-    InitFontx(fx32M,"/sdcard/font/ILMH32XB.FNT",""); // 16x32Dot Mincyo
-        
-    //FontxFile *fx = fx24M;
-    spi_master_init(&dev, CONFIG_MOSI_GPIO, CONFIG_SCLK_GPIO, CONFIG_CS_GPIO,
-                            CONFIG_DC_GPIO, CONFIG_RESET_GPIO, CONFIG_BL_GPIO);
-
-    uint16_t model = 0x9341;
-    lcdInit(&dev, model, CONFIG_WIDTH, CONFIG_HEIGHT, CONFIG_OFFSETX, CONFIG_OFFSETY);
-
-    lcdFillScreen(&dev, BLACK);
-
-    /* get font width & height
-    uint8_t buffer[FontxGlyphBufSize];
-    uint8_t fontWidth;
-    uint8_t fontHeight;
-    GetFontx(fx, 0, buffer, &fontWidth, &fontHeight);
-
-    uint16_t color;
-    lcdFillScreen(&dev, BLACK);
-    uint8_t ascii[20];
-
-    color = RED;
-    strcpy((char *)ascii, "Direction=0");
-    lcdSetFontDirection(&dev, 0);
-    lcdDrawString(&dev, fx, 0, fontHeight-1, ascii, color);
-    
-    color = BLUE;
-    strcpy((char *)ascii, "Direction=2");
-    lcdSetFontDirection(&dev, 2);
-    lcdDrawString(&dev, fx, (width-1), (height-1)-(fontHeight*1), ascii, color);
-   
-    color = CYAN;
-    strcpy((char *)ascii, "Direction=1");
-    lcdSetFontDirection(&dev, 1);
-    lcdDrawString(&dev, fx, (width-1)-fontHeight, 0, ascii, color);
-   
-    color = GREEN;
-    strcpy((char *)ascii, "Direction=3");
-    lcdSetFontDirection(&dev, 3);
-    lcdDrawString(&dev, fx, (fontHeight-1), height-1, ascii, color);
-    */
+    sprintf(lbuff, "Wait for time sync");
+    lcd_string(lbuff, 3, 0, 0, YELLOW);
 
     uint16_t tcnt = 1000;
     while (!fl_time && (tcnt-- > 0)) // ждем установки времени перед запуском остальных задач
     {
-        vTaskDelay(25 / portTICK_PERIOD_MS);
+        vTaskDelay(50 / portTICK_PERIOD_MS);
     }
 
-    xTaskCreatePinnedToCore(ble_task, 
-        "BLEscanner", 4096, ( void * ) 1, tskIDLE_PRIORITY + 5, NULL, tskNO_AFFINITY);
-
+    sprintf(lbuff, "Start timer");
+    lcd_string(lbuff, 4, 0, 0, YELLOW);
     // Запуск таймера с 10-минутным интервалом
     ESP_ERROR_CHECK(esp_timer_start_periodic(periodic_timer, 600000000));
 
-    /* Start the server for the first time */
-    wserver = start_webserver();
+    sprintf(lbuff, "Start ble_task...");
+    lcd_string(lbuff, 5, 0, 0, YELLOW);
+ 
+    vTaskDelay(1000 / portTICK_PERIOD_MS);
+    lcdFillScreen(&dev, BLACK);
 
-    // All done, unmount partition and disable SDMMC or SPI peripheral
-    //esp_vfs_fat_sdcard_unmount(mount_point, card);
-    //ESP_LOGI(TAG, "Card unmounted");
-    //deinitialize the bus after all devices are removed
-    //spi_bus_free(host.slot);
+    xTaskCreatePinnedToCore(ble_task, 
+        "BLEscanner", 4096, ( void * ) 1, tskIDLE_PRIORITY + 5, NULL, tskNO_AFFINITY);
 
 }
