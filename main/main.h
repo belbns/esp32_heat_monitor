@@ -25,10 +25,11 @@
 #define INI_FILE     "/sdcard/INI/ble_init.txt"
 #define INI_BAK_FILE "/sdcard/INI/ble_init.bak"
 #define INDEX_FILE   "/index.htm"
-
+#define FPATH_LEN   64
 #define SCRATCH_BUFSIZE (10240)
-
-
+// ble scan pauses, sec
+#define SCAN_LONG_PAUSE     30
+#define SCAN_SHORT_PAUSE    15
 enum ble_cmd {
     SET_MODE = 0,
     SET_PERIOD,
@@ -93,6 +94,5 @@ typedef struct _command_item {
 uint8_t put_to_cmd_queue(uint8_t pnum, uint8_t cmd, uint8_t param);
 uint8_t save_params(void);
 void lcd_string(char *st, uint8_t nst, uint16_t shift, uint16_t clrshift, uint16_t color);
-
 
 #endif

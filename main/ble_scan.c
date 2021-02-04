@@ -29,8 +29,6 @@
 #include "ble_scan.h"
 
 #include "ili9340.h"
-//#include "fontx.h"
-
 
 #define TAG "GATTC"
 #define REMOTE_SERVICE_UUID        0xFFE0
@@ -40,19 +38,8 @@
 extern pump_struct heat_ctrl[2];
 extern xQueueHandle pump_cmd_queue[2];
 
-//extern TFT_t dev;
-//extern int width;
-//extern int height;
-//extern FontxFile fx16M[2];
-//extern FontxFile fx24M[2];
-//extern FontxFile fx32M[2];
-
-char lbuff[64];
-
-static void parse_notif(char *not_value, uint16_t not_len, uint8_t curr_dev);
-static uint8_t send_cmd(uint8_t curr_dev);
-
 static uint8_t wrk_device = 0;
+static char lbuff[64];
 
 static bool connect    = false;
 static bool get_server = false;
@@ -64,6 +51,8 @@ static void esp_gap_cb(esp_gap_ble_cb_event_t event, esp_ble_gap_cb_param_t *par
 static void esp_gattc_cb(esp_gattc_cb_event_t event, esp_gatt_if_t gattc_if, esp_ble_gattc_cb_param_t *param);
 static void gattc_profile_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_t gattc_if, esp_ble_gattc_cb_param_t *param);
 
+static void parse_notif(char *not_value, uint16_t not_len, uint8_t curr_dev);
+static uint8_t send_cmd(uint8_t curr_dev);
 
 static esp_bt_uuid_t remote_filter_service_uuid = {
     .len = ESP_UUID_LEN_16,
@@ -282,7 +271,8 @@ static void gattc_profile_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_
         }else{
             ESP_LOGI(TAG, "ESP_GATTC_NOTIFY_EVT, receive indicate value:");
         }
-        //esp_log_buffer_hex(TAG, p_data->notify.value, p_data->notify.value_len);
+        
+        // parse notification package
         parse_notif((char *)p_data->notify.value, p_data->notify.value_len, wrk_device);
         break;
     case ESP_GATTC_WRITE_DESCR_EVT:
@@ -321,8 +311,6 @@ static void esp_gap_cb(esp_gap_ble_cb_event_t event, esp_ble_gap_cb_param_t *par
     uint8_t *adv_name = NULL;
     uint8_t adv_name_len = 0;
 
-    //char buf[32];
-
     switch (event) {
     case ESP_GAP_BLE_SCAN_PARAM_SET_COMPLETE_EVT: {
         //the unit of the duration is second
@@ -348,20 +336,6 @@ static void esp_gap_cb(esp_gap_ble_cb_event_t event, esp_ble_gap_cb_param_t *par
             adv_name = esp_ble_resolve_adv_data(scan_result->scan_rst.ble_adv,
                                                 ESP_BLE_AD_TYPE_NAME_CMPL, &adv_name_len);
             ESP_LOGI(TAG, "searched Device Name Len %d", adv_name_len);
-            //esp_log_buffer_char(TAG, adv_name, adv_name_len);
-            //strlcpy(buf, (char *)adv_name, adv_name_len + 1);
-            //ESP_LOGI(TAG, "adv_name: %s len:%d", buf, adv_name_len);
-/*
-#if CONFIG_EXAMPLE_DUMP_ADV_DATA_AND_SCAN_RESP
-            if (scan_result->scan_rst.adv_data_len > 0) {
-                ESP_LOGI(TAG, "adv data:");
-                esp_log_buffer_hex(TAG, &scan_result->scan_rst.ble_adv[0], scan_result->scan_rst.adv_data_len);
-            }
-            if (scan_result->scan_rst.scan_rsp_len > 0) {
-                ESP_LOGI(TAG, "scan resp:");
-                esp_log_buffer_hex(TAG, &scan_result->scan_rst.ble_adv[scan_result->scan_rst.adv_data_len], scan_result->scan_rst.scan_rsp_len);
-            }
-#endif*/
             ESP_LOGI(TAG, "\n");
 
             if (adv_name != NULL) {
@@ -438,6 +412,7 @@ static void esp_gattc_cb(esp_gattc_cb_event_t event, esp_gatt_if_t gattc_if, esp
     }
 }
 
+// =================================================================================
 void ble_task(void * pvParameters)
 {
     ( void ) pvParameters;
@@ -446,29 +421,15 @@ void ble_task(void * pvParameters)
 
     time_t now;
     struct tm timeinfo;
-    /*
-    uint8_t buffer[FontxGlyphBufSize];
-    uint8_t fontWidth;
-    uint8_t fontHeight;
 
-    FontxFile *fx = fx32M;
-    GetFontx(fx, 0, buffer, &fontWidth, &fontHeight);
-
-    uint16_t color = CYAN;
-    lcdFillScreen(&dev, BLACK);
-    */
     uint16_t color;
     uint8_t hh = 0; uint8_t mm = 0;
 
     sprintf(lbuff, "P,bar:");
     lcd_string(lbuff, 0, 16 * 10, 16 * 10, CYAN);
  
-    //lcdSetFontDirection(&dev, 1);
-    //lcdDrawString(&dev, fx, (width-1)-fontHeight, 16 * 10, ascii, color);
     sprintf(lbuff, "  t(m)  t(x)  t(a)");
     lcd_string(lbuff, 1, 0, 0, CYAN);
-
-    //lcdDrawString(&dev, fx, (width-1)-fontHeight - 32, 0, ascii, color);
 
     ESP_ERROR_CHECK(esp_bt_controller_mem_release(ESP_BT_MODE_CLASSIC_BT));
 
@@ -521,7 +482,7 @@ void ble_task(void * pvParameters)
     }
 
     */
-    uint16_t delay_cnt = 30;
+    uint16_t delay_cnt = SCAN_LONG_PAUSE;
     uint8_t err_cnt[2] = {0, 0};
 
     vTaskDelay(1000 / portTICK_PERIOD_MS);
@@ -576,9 +537,9 @@ void ble_task(void * pvParameters)
         if ((uxQueueMessagesWaiting(pump_cmd_queue[0]) > 0) ||
             (uxQueueMessagesWaiting(pump_cmd_queue[1]) > 0) || 
             (err_cnt[0] > 0) || (err_cnt[1] > 0)) {
-            delay_cnt = 15;
+            delay_cnt = SCAN_SHORT_PAUSE;
         } else {
-            delay_cnt = 30;
+            delay_cnt = SCAN_LONG_PAUSE;
         }
 
         sprintf(lbuff, "east:0x%x  west:0x%x ",
@@ -606,11 +567,8 @@ void ble_task(void * pvParameters)
             mm = timeinfo.tm_min;
 
             lcd_string(lbuff, 0, 0, xb, YELLOW);
-            //lcdDrawFillRect(&dev, (width-1)-fontHeight, xb, (width-1), 16 * 8, BLACK);
-            //lcdDrawString(&dev, fx, (width-1)-fontHeight, 0, ascii, color);
 
-            //if ((i % 5) == 0) {
-            if ((i == 0) || (i == (delay_cnt - 1))) {
+            if ((i % 5) == 0) {
                 if ((heat_ctrl[0].press_bar >= 0.7) && (heat_ctrl[0].press_bar < 1.0))
                 {
                     color = YELLOW;
@@ -621,8 +579,6 @@ void ble_task(void * pvParameters)
                 }
                 sprintf(lbuff, "%4.2f", heat_ctrl[0].press_bar);
                 lcd_string(lbuff, 0, 16 * 16, 16 * 16, color);
-                //lcdDrawFillRect(&dev, (width-1)-fontHeight, 16 * 16, (width-1), 16 * 20 - 1, BLACK);
-                //lcdDrawString(&dev, fx, (width-1)-fontHeight, 16 * 16, ascii, color);
 
                 if (heat_ctrl[0].pump_on) {
                     color = YELLOW;
@@ -632,8 +588,6 @@ void ble_task(void * pvParameters)
                 sprintf(lbuff, 
                     "E %5.2f %5.2f %5.2f", heat_ctrl[0].t_main, heat_ctrl[0].t_aux, heat_ctrl[0].t_air);
                 lcd_string(lbuff, 2, 0, 0, color);
-                //lcdDrawFillRect(&dev, (width-1)-fontHeight - 32 * 2, 0, (width-1) - 32 * 2, (height-1), BLACK);
-                //lcdDrawString(&dev, fx, (width-1)-fontHeight - 32 * 2, 0, ascii, color);
 
                 if (heat_ctrl[1].pump_on) {
                     color = YELLOW;
@@ -643,8 +597,6 @@ void ble_task(void * pvParameters)
                 sprintf(lbuff, 
                     "W %5.2f %5.2f %5.2f", heat_ctrl[1].t_main, heat_ctrl[1].t_aux, heat_ctrl[1].t_air);
                 lcd_string(lbuff, 3, 0, 0, color);
-                //lcdDrawFillRect(&dev, (width-1)-fontHeight - 32 * 3, 0, (width-1) - 32 * 3, (height-1), BLACK);
-                //lcdDrawString(&dev, fx, (width-1)-fontHeight - 32 * 3, 0, ascii, color);
             }
 
             vTaskDelay(1000 / portTICK_PERIOD_MS);
@@ -658,6 +610,7 @@ void ble_task(void * pvParameters)
     }
 }
 
+// parse notification packages
 static void parse_notif(char *not_value, uint16_t not_len, uint8_t curr_dev)
 {
     char tbuff[40];
@@ -722,7 +675,6 @@ static void parse_notif(char *not_value, uint16_t not_len, uint8_t curr_dev)
                     st1[2] = '\0';
                     mm = atoi(st1);
                     heat_ctrl[curr_dev].period_rec.min = mm;
-                    //ESP_LOGI(TAG, "=1 case 1: hh=%d mm=%d", hh, mm);
                     token = strsep(&ptr, ":");
                     if ((token != NULL) && (strlen(token) == 4)) {
                         strncpy(st1, token, 2);
@@ -733,7 +685,6 @@ static void parse_notif(char *not_value, uint16_t not_len, uint8_t curr_dev)
                         st1[2] = '\0';
                         mm = atoi(st1);
                         heat_ctrl[curr_dev].night_begin_rec.min = mm;
-                        //ESP_LOGI(TAG, "=2 case 1: hh=%d mm=%d", hh, mm);
                         token = strsep(&ptr, ":");
                         if ((token != NULL) && (strlen(token) > 3)) {
                             strncpy(st1, token, 2);
@@ -744,7 +695,6 @@ static void parse_notif(char *not_value, uint16_t not_len, uint8_t curr_dev)
                             st1[2] = '\0';
                             mm = atoi(st1);
                             heat_ctrl[curr_dev].night_end_rec.min = mm;
-                            //ESP_LOGI(TAG, "=3 case 1: hh=%d mm=%d", hh, mm);
                         }
                     }
                     heat_ctrl[curr_dev].rec_flags |= 2;
@@ -771,7 +721,7 @@ static void parse_notif(char *not_value, uint16_t not_len, uint8_t curr_dev)
                     heat_ctrl[curr_dev].vref_data = atoi(token);
                     token = strsep(&ptr, ":");
                     if (token != NULL) {
-                        heat_ctrl[curr_dev].pressure = 1.0 * atoi(token); //??
+                        heat_ctrl[curr_dev].pressure = 1.0 * atoi(token);
                         token = strsep(&ptr, ":");
                         if (token != NULL) {
                             heat_ctrl[curr_dev].lock_rec = atoi(token);
@@ -824,6 +774,7 @@ static void parse_notif(char *not_value, uint16_t not_len, uint8_t curr_dev)
     }
 }
 
+// send command to the BLE device
 static uint8_t send_cmd(uint8_t curr_dev)
 {
     time_t now;

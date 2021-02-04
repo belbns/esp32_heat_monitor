@@ -32,7 +32,7 @@ void time_sync_notification_cb(struct timeval *tv)
 {
 	ESP_LOGI(CLOCK_TAG, "Notification of a time sync. event");
 
-	// Sync controllers time after init
+	// Sync controllers time after init (fl_time == true)
 	if (fl_time) {
     	for (uint8_t i = 0; i < 2; i++) {
     		if (put_to_cmd_queue(i, SET_TIME, 0)) {
@@ -79,6 +79,7 @@ void clock_task(void * pvParameters)
    	
 	localtime_r(&now, &timeinfo);
 
+	// first time sending 2 commands to each device
 	for (uint8_t i = 0; i < 4; i++) {
     	if (put_to_cmd_queue(i / 2, SET_TIME, 0)) {
         	ESP_LOGI(CLOCK_TAG, "=== SET_TIME -> pump_cmd_queue[%d]", i / 2);

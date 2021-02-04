@@ -54,7 +54,7 @@
 
 #define CHECK_FILE_EXTENSION(filename, ext) (strcasecmp(&filename[strlen(filename) - strlen(ext)], ext) == 0)
 
-extern uint8_t fl_time;  // true - время синхронизировано
+extern uint8_t fl_time;  // true - synchronized
 
 xQueueHandle pump_cmd_queue[2];
 
@@ -98,11 +98,10 @@ TFT_t dev;
 
 int width = CONFIG_WIDTH;
 int height = CONFIG_HEIGHT;
-FontxFile fx16M[2];
-FontxFile fx24M[2];
+//FontxFile fx16M[2];
+//FontxFile fx24M[2];
 FontxFile fx32M[2];
 
-//uint8_t ascii[32];
 uint8_t buffer[FontxGlyphBufSize];
 uint8_t fontWidth;
 uint8_t fontHeight;
@@ -130,13 +129,11 @@ static void event_handler(void* arg, esp_event_base_t event_base,
     if (event_base == WIFI_EVENT && event_id == WIFI_EVENT_STA_START) {
         esp_wifi_connect();
     } else if (event_base == WIFI_EVENT && event_id == WIFI_EVENT_STA_DISCONNECTED) {
-        // -----
         if (wserver != NULL) {
             ESP_LOGI(TAG, "Stopping webserver");
             stop_webserver(wserver);
             wserver = NULL;
         }
-        // -----
         if (s_retry_num < ESP_MAXIMUM_RETRY) {
             esp_wifi_connect();
             s_retry_num++;
@@ -150,7 +147,6 @@ static void event_handler(void* arg, esp_event_base_t event_base,
         ESP_LOGI(TAG, "got ip:" IPSTR, IP2STR(&event->ip_info.ip));
         s_retry_num = 0;
         xEventGroupSetBits(s_wifi_event_group, WIFI_CONNECTED_BIT);
-        // ------
         if (wserver == NULL) {
             ESP_LOGI(TAG, "Starting webserver");
             wserver = start_webserver();
@@ -201,8 +197,8 @@ void wifi_init_sta(void)
             pdFALSE,
             portMAX_DELAY);
 
-    /* xEventGroupWaitBits() returns the bits before the call returned, hence we can test which event actually
-     * happened. */
+    /* xEventGroupWaitBits() returns the bits before the call returned, 
+    hence we can test which event actually happened. */
     if (bits & WIFI_CONNECTED_BIT) {
         ESP_LOGI(TAG, "connected to ap SSID:%s", ESP_WIFI_SSID);
     } else if (bits & WIFI_FAIL_BIT) {
@@ -210,22 +206,14 @@ void wifi_init_sta(void)
     } else {
         ESP_LOGE(TAG, "UNEXPECTED EVENT");
     }
-
-    /* The event will not be processed after unregister 
-    ESP_ERROR_CHECK(esp_event_handler_instance_unregister(
-        IP_EVENT, IP_EVENT_STA_GOT_IP, instance_got_ip));
-    ESP_ERROR_CHECK(esp_event_handler_instance_unregister(
-        WIFI_EVENT, ESP_EVENT_ANY_ID, instance_any_id));
-    vEventGroupDelete(s_wifi_event_group);
-    */
 }
 
 // init file system on sd card
 esp_err_t init_fs(void)
 {
     sdmmc_host_t host = SDSPI_HOST_DEFAULT();
-#ifdef USE_VSPI_HOST    
-    host.slot = VSPI_HOST; // default - HSPI_HOST
+#ifndef CONFIG_SDCARD_HSPI_HOST //(default)   
+    host.slot = VSPI_HOST; 
 #endif
     esp_vfs_fat_sdmmc_mount_config_t mount_config = {
         .format_if_mount_failed = false,
@@ -268,7 +256,7 @@ esp_err_t init_fs(void)
     return ESP_OK;
 }
 
-// set content typy by file name extention
+// set content type by file name extention
 static esp_err_t set_content_type_from_file(httpd_req_t *req, const char *filepath)
 {
     const char *type = "text/plain";
@@ -288,7 +276,6 @@ static esp_err_t set_content_type_from_file(httpd_req_t *req, const char *filepa
     return httpd_resp_set_type(req, type);
 }
 
-#define FPATH_LEN 64
 /* Send HTTP response with the contents of the requested file */
 static esp_err_t common_get_handler(httpd_req_t *req)
 {    
@@ -354,7 +341,7 @@ static esp_err_t common_get_handler(httpd_req_t *req)
     return ESP_OK;
 }
 
-// получение данных из формы редактирования параметров - "/set_params"
+// receive form parameters - "/set_params"
 static esp_err_t params_get_handler(httpd_req_t *req)
 {
     char*  buf;
@@ -377,16 +364,14 @@ static esp_err_t params_get_handler(httpd_req_t *req)
             if (httpd_query_key_value(buf, "pname", param, sizeof(param)) == ESP_OK) {
                 if (strcmp(param, &remote_device_name[0][5]) == 0) {
                     pn = 0;
-                    //ESP_LOGI(TAG, "pname=%s pn=%d", param, pn);
                     fl_pname = 1;
                 } else if (strcmp(param, &remote_device_name[1][5]) == 0) {
                     pn = 1;
-                    //ESP_LOGI(TAG, "pname=%s pn=%d", param, pn);
                     fl_pname = 1;
                 }
             }
 
-            if (fl_pname) { // строка параметров содержит имя
+            if (fl_pname) { // contains "pname"
                 uint8_t fl_cmd_mode = false;
                 if (httpd_query_key_value(buf, "period", param, sizeof(param)) == ESP_OK) {
                     strncpy(b, param, 2);
@@ -499,8 +484,7 @@ static esp_err_t params_get_handler(httpd_req_t *req)
                             ESP_LOGI(TAG, "*** Cannot send SET_LOCK to pump_cmd_queue[%d]", pn);
                         }
                     }
-                }
-                //heat_ctrl[pn].updated = true;
+                }                
             }
         }
         free(buf);
@@ -508,7 +492,7 @@ static esp_err_t params_get_handler(httpd_req_t *req)
     return ESP_OK;
 }
 
-// запрос fetch - "/display_val"
+// fetch - "/display_val"
 static esp_err_t display_get_handler(httpd_req_t *req)
 {
     static uint8_t sel = 0;
@@ -581,7 +565,6 @@ static esp_err_t display_get_handler(httpd_req_t *req)
     }
 
     httpd_resp_send(req, jsonbuf, HTTPD_RESP_USE_STRLEN);
-    //ESP_LOGI(TAG, "send jsonbuf: %s", jsonbuf);
 
     free(jsonbuf);
 
@@ -591,21 +574,12 @@ static esp_err_t display_get_handler(httpd_req_t *req)
 
 esp_err_t http_404_error_handler(httpd_req_t *req, httpd_err_code_t err)
 {
-    /*
-    if (strcmp("/hello", req->uri) == 0) {
-        httpd_resp_send_err(req, HTTPD_404_NOT_FOUND, "/hello URI is not available");
-        return ESP_OK;
-    } else if (strcmp("/echo", req->uri) == 0) {
-        httpd_resp_send_err(req, HTTPD_404_NOT_FOUND, "/echo URI is not available");
-        return ESP_FAIL;
-    }
-    */
     httpd_resp_send_err(req, HTTPD_404_NOT_FOUND, "404 error - URI is not available");
     return ESP_FAIL;
 }
 
 
-// Отправка команды в соответствующую очередь
+// put command to queue
 uint8_t put_to_cmd_queue(uint8_t pnum, uint8_t cmd, uint8_t param)
 {
     command_item item;
@@ -622,7 +596,7 @@ uint8_t put_to_cmd_queue(uint8_t pnum, uint8_t cmd, uint8_t param)
     }
 }
 
-// Восстановление сохраненных параметров из файла (JSON)
+// restore parameters from file (JSON)
 void restore_params(void)
 {
     char *line;
@@ -634,15 +608,15 @@ void restore_params(void)
 
     ESP_LOGI(TAG, "Reading parameters from %s", INI_FILE);
     FILE* f = fopen(INI_FILE, "r");
-    if (f == NULL) { // нет файла сохраненных параметров (или поврежден)
+    if (f == NULL) { // not exists or corrupted
         ESP_LOGE(TAG, "Failed to open file %s", INI_FILE);
-        f = fopen(INI_BAK_FILE, "r"); // пытаемся прочитать BAK файл
+        f = fopen(INI_BAK_FILE, "r"); // attempt to read .BAK file
         if (f == NULL) {
             ESP_LOGE(TAG, "Failed to open file %s", INI_BAK_FILE);
         }
     }
 
-    if (f != NULL) { // файл открылся
+    if (f != NULL) {
         line = (char *)malloc(256);
         *line = '\0';
         bb = (char *)malloc(16);
@@ -659,22 +633,18 @@ void restore_params(void)
                             pn = 1;
                         }
                     }
-                    //ESP_LOGI(TAG, "== pn= %d", pn);
                     if (pn < 2) {
                         cJSON *slk = cJSON_GetObjectItem(root,"slk");
                         if (cJSON_IsNumber(slk)) {
                             heat_ctrl[pn].lock_set = (uint8_t)slk->valueint;
-                            //ESP_LOGI(TAG, "== lock_set= %d", slk->valueint);
                         }
                         cJSON *smod = cJSON_GetObjectItem(root,"smod");
                         if (cJSON_IsNumber(smod)) {
                             heat_ctrl[pn].mode_set = (uint8_t)smod->valueint;
-                            //ESP_LOGI(TAG, "== mode_set= %d", smod->valueint);
                         }
                         cJSON *sper = cJSON_GetObjectItem(root,"sper");
                         if (cJSON_IsString(sper)) {
                             strlcpy(bb, sper->valuestring, 6);
-                            //ESP_LOGI(TAG, "== sper_set= %s", bb);
                             strncpy(aa, bb, 2);
                             aa[2] = '\0';
                             heat_ctrl[pn].period_set.hour = atoi(aa);        
@@ -685,7 +655,6 @@ void restore_params(void)
                         cJSON *snb = cJSON_GetObjectItem(root,"snb");
                         if (cJSON_IsString(snb)) {
                             strlcpy(bb, snb->valuestring, 6);
-                            //ESP_LOGI(TAG, "== snb_set= %s", bb);
                             strncpy(aa, bb, 2);
                             aa[2] = '\0';
                             heat_ctrl[pn].night_begin_set.hour = atoi(aa);        
@@ -696,7 +665,6 @@ void restore_params(void)
                         cJSON *sne = cJSON_GetObjectItem(root,"sne");
                         if (cJSON_IsString(sne)) {
                             strlcpy(bb, sne->valuestring, 6);
-                            //ESP_LOGI(TAG, "== sne_set= %s", bb);
                             strncpy(aa, bb, 2);
                             aa[2] = '\0';
                             heat_ctrl[pn].night_end_set.hour = atoi(aa);        
@@ -707,17 +675,14 @@ void restore_params(void)
                         cJSON *sdup = cJSON_GetObjectItem(root,"sdup");
                         if (cJSON_IsNumber(sdup)) {
                             heat_ctrl[pn].delta_on_set = (uint8_t)sdup->valueint;
-                            //ESP_LOGI(TAG, "== sdup_set= %d", sdup->valueint);
                         }
                         cJSON *sddn = cJSON_GetObjectItem(root,"sddn");
                         if (cJSON_IsNumber(sddn)) {
                             heat_ctrl[pn].delta_off_set = (uint8_t)sddn->valueint;
-                            //ESP_LOGI(TAG, "== sddn_set= %d", sddn->valueint);
                         }
                         cJSON *ssclk = cJSON_GetObjectItem(root,"ssclk");
                         if (cJSON_IsNumber(ssclk)) {
                             heat_ctrl[pn].sclk_set = (uint16_t)ssclk->valueint;
-                            //ESP_LOGI(TAG, "== sclk_set= %d", ssclk->valueint);
                         }
                     }
                 }
@@ -729,6 +694,7 @@ void restore_params(void)
     } 
 }
 
+// save parameters to file
 uint8_t save_params(void)
 {
     struct stat st;
@@ -763,6 +729,7 @@ uint8_t save_params(void)
     return true;
 }
 
+// save statistics to file
 static void periodic_timer_callback(void* arg)
 {
     char fname[48];
@@ -794,10 +761,9 @@ static void periodic_timer_callback(void* arg)
 static httpd_handle_t start_webserver(void)
 {
     httpd_config_t config = HTTPD_DEFAULT_CONFIG();
-    //config.server_port = WEB_SERVER_PORT;
     config.uri_match_fn = httpd_uri_match_wildcard;
 
-    // Параметры обрабатываемых запросов
+    // queries parameters
     httpd_uri_t display_val = {
         .uri       = "/display_val",
         .method    = HTTP_GET,
@@ -841,6 +807,7 @@ static void stop_webserver(httpd_handle_t server)
     httpd_stop(server);
 }
 
+//display string on tft lcd
 void lcd_string(char *st, uint8_t nst, uint16_t shift, uint16_t clrshift, uint16_t color)
 {
     uint16_t ll = 16 * strlen(st);
@@ -854,6 +821,7 @@ void lcd_string(char *st, uint8_t nst, uint16_t shift, uint16_t clrshift, uint16
     lcdDrawString(&dev, fx, y0, shift, (uint8_t *)st, color);
 }
 
+// ================================================================================
 void app_main(void)
 {
     const esp_timer_create_args_t periodic_timer_args = {
@@ -872,10 +840,6 @@ void app_main(void)
     ESP_LOGI(TAG, "ESP_WIFI_MODE_STA");
     wifi_init_sta();
 
-    InitFontx(fx16M,"/sdcard/font/ILMH16XB.FNT",""); // 8x16Dot Mincyo
-    InitFontx(fx24M,"/sdcard/font/ILMH24XB.FNT",""); // 12x24Dot Mincyo
-    InitFontx(fx32M,"/sdcard/font/ILMH32XB.FNT",""); // 16x32Dot Mincyo
-        
     spi_master_init(&dev, CONFIG_MOSI_GPIO, CONFIG_SCLK_GPIO, CONFIG_CS_GPIO,
                             CONFIG_DC_GPIO, CONFIG_RESET_GPIO, CONFIG_BL_GPIO);
 
@@ -886,6 +850,10 @@ void app_main(void)
     ESP_LOGI(TAG, "Initializing SD card");
     ESP_ERROR_CHECK(init_fs());
 
+    //InitFontx(fx16M,"/sdcard/font/ILMH16XB.FNT",""); // 8x16Dot Mincyo
+    //InitFontx(fx24M,"/sdcard/font/ILMH24XB.FNT",""); // 12x24Dot Mincyo
+    InitFontx(fx32M,"/sdcard/font/ILMH32XB.FNT",""); // 16x32Dot Mincyo
+        
     char lbuff[32];
     GetFontx(fx, 0, buffer, &fontWidth, &fontHeight);
 
@@ -893,7 +861,7 @@ void app_main(void)
     lcd_string(lbuff, 1, 0, 0, YELLOW);
     restore_params();
 
-    // Создание очередей команд
+    // create queues
     pump_cmd_queue[0] = xQueueCreate(CMD_QUEUE_LEN, sizeof(command_item));
     if (pump_cmd_queue[0] == NULL) {
         ESP_LOGE(TAG, "*** Cannot create command queue 0");
@@ -905,7 +873,7 @@ void app_main(void)
     
     xEventGroupWaitBits(s_wifi_event_group, WIFI_CONNECTED_BIT, true, true, portMAX_DELAY);
 
-    // Создание таймера для синхронизации времени и сохранения параметров
+    // create timer
     esp_timer_handle_t periodic_timer;
     ESP_LOGI(TAG, "Ctreate periodic timer");
     ESP_ERROR_CHECK(esp_timer_create(&periodic_timer_args, &periodic_timer));
@@ -921,14 +889,14 @@ void app_main(void)
     lcd_string(lbuff, 3, 0, 0, YELLOW);
 
     uint16_t tcnt = 1000;
-    while (!fl_time && (tcnt-- > 0)) // ждем установки времени перед запуском остальных задач
+    while (!fl_time && (tcnt-- > 0)) // wait for time synchronization
     {
         vTaskDelay(50 / portTICK_PERIOD_MS);
     }
 
     sprintf(lbuff, "Start timer");
     lcd_string(lbuff, 4, 0, 0, YELLOW);
-    // Запуск таймера с 10-минутным интервалом
+    // start timer with period of 10 minutes
     ESP_ERROR_CHECK(esp_timer_start_periodic(periodic_timer, 600000000));
 
     sprintf(lbuff, "Start ble_task...");
